@@ -55,7 +55,7 @@ jobs:
           sudo apt-get install -y libxml2-utils
     
           # Set summary file path
-          SUMMARY_FILE="summary.md"
+          SUMMARY_FILE="${GITHUB_WORKSPACE}/summary.md"
           
           # Start building the summary content
           echo "## Unit Test Results Summary" > $SUMMARY_FILE
@@ -95,6 +95,7 @@ jobs:
           # Set the path of the summary file as an environment variable
           echo "SUMMARY_FILE_PATH=$SUMMARY_FILE" >> $GITHUB_ENV
           echo "summary_file=$SUMMARY_FILE" >> $GITHUB_OUTPUT
+          echo "Current directory: $(pwd)"
 
       - name: Complete report test status
         if: always()
@@ -102,6 +103,11 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
+            const fs = require('fs');
+            const path = process.env.SUMMARY_FILE_PATH;
+            const summaryContent = fs.readFileSync(path, 'utf-8');
+            console.log("Contents of the summary file:");
+            console.log(summaryContent);
             const check_run = await github.rest.checks.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -111,7 +117,9 @@ jobs:
               conclusion: "${{ job.status }}",
               output: {
                 title: "Test Summary",
-                summary: "$(cat "${{ steps.summarize_test_results.outputs.summary_file }}" | sed 's/"/\\"/g' | sed 's/\n/\\n/g')"
+                summary: summaryContent
               }
             });
             return check_run.data.id;
+        env:
+          SUMMARY_FILE_PATH: ${{ steps.summarize_test_results.outputs.summary_file }}
