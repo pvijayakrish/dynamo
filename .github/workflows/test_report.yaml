@@ -49,18 +49,26 @@ jobs:
         run: echo "test_run_url=${{ github.event.workflow_run.html_url }}" >> $GITHUB_OUTPUT
 
       - name: Summarize Test Results as Markdown Table
+        id: summarize_test_results
         run: |
           sudo apt-get update -y
           sudo apt-get install -y libxml2-utils
-          echo "## Unit Test Results Summary" >> $GITHUB_STEP_SUMMARY
-          echo "# This test report is a summary of the test run in workflow run: [${{ steps.set_test_run_url.outputs.test_run_url }}](${{ steps.set_test_run_url.outputs.test_run_url }})" >> $GITHUB_STEP_SUMMARY
-          echo "| Test Suite | Tests | Passed | Failed | Skipped | Duration |" >> $GITHUB_STEP_SUMMARY
-          echo "|------------|-------|--------|--------|---------|----------|" >> $GITHUB_STEP_SUMMARY
+    
+          # Set summary file path
+          SUMMARY_FILE="summary.md"
+          
+          # Start building the summary content
+          echo "## Unit Test Results Summary" > $SUMMARY_FILE
+          echo "# This test report is a summary of the test run in workflow run: [${{ steps.set_test_run_url.outputs.test_run_url }}](${{ steps.set_test_run_url.outputs.test_run_url }})" >> $SUMMARY_FILE
+          echo "| Test Suite | Tests | Passed | Failed | Skipped | Duration |" >> $SUMMARY_FILE
+          echo "|------------|-------|--------|--------|---------|----------|" >> $SUMMARY_FILE
+          
           total_tests=0
           total_passed=0
           total_failed=0
           total_skipped=0
           total_duration=0
+    
           for file in artifacts/**/*.xml; do
             if [ -f "$file" ]; then
               suite_name=$(basename "$(dirname "$file")")
@@ -69,10 +77,10 @@ jobs:
               failed=$(xmllint --xpath "count(//testcase[failure or error])" "$file")
               skipped=$(xmllint --xpath "count(//testcase[skipped])" "$file")
               duration=$(xmllint --xpath "sum(//testcase/@time)" "$file")
-              # Debugging: Output values for each file
-              echo "Processing file: $file"
-              echo "Suite: $suite_name, Tests: $tests, Passed: $passed, Failed: $failed, Skipped: $skipped, Duration: $duration"
-              echo "| $suite_name | $tests | $passed | $failed | $skipped | ${duration}s |" >> $GITHUB_STEP_SUMMARY
+              
+              # Append the result for the current test suite to summary file
+              echo "| $suite_name | $tests | $passed | $failed | $skipped | ${duration}s |" >> $SUMMARY_FILE
+              
               total_tests=$((total_tests + tests))
               total_passed=$((total_passed + passed))
               total_failed=$((total_failed + failed))
@@ -80,33 +88,42 @@ jobs:
               total_duration=$(echo "$total_duration + $duration" | bc)
             fi
           done
-          echo "Total tests: $total_tests"
-          echo "Total passed: $total_passed"
-          echo "Total failed: $total_failed"
-          echo "Total skipped: $total_skipped"
-          echo "Total duration: $total_duration"
-          echo "|------------|-------|--------|--------|---------|----------|" >> $GITHUB_STEP_SUMMARY
-          echo "| **Total** | $total_tests | $total_passed | $total_failed | $total_skipped | ${total_duration}s |" >> $GITHUB_STEP_SUMMARY
-
+    
+          echo "|------------|-------|--------|--------|---------|----------|" >> $SUMMARY_FILE
+          echo "| **Total** | $total_tests | $total_passed | $total_failed | $total_skipped | ${total_duration}s |" >> $SUMMARY_FILE
+    
+          # Set the path of the summary file as an environment variable
+          echo "SUMMARY_FILE_PATH=$SUMMARY_FILE" >> $GITHUB_ENV
+          echo "summary_file=$SUMMARY_FILE" >> $GITHUB_OUTPUT
+    
       - name: Complete report test status
         if: always()
         id: update_check_status
         run: |
-           echo "Contents of GITHUB_STEP_SUMMARY:"
-           cat "$GITHUB_STEP_SUMMARY"
-           echo "Updating the final test report status in check run summary."
-           echo "Final status report is now available."
-           curl -X PATCH \
-             -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-             -d @- \
-             https://api.github.com/repos/${{ github.repository }}/check-runs/${{ github.event.workflow_run.check_run.id }} \
-             <<EOF
-           {
-             "status": "completed",
-             "conclusion": "${{ job.status }}",
-             "output": {
-               "title": "Test Results Summary",
-               "summary": "$(cat "$GITHUB_STEP_SUMMARY" | sed 's/"/\\"/g' | sed 's/\n/\\n/g')"
-             }
-           }
-           EOF
+          # Use the path to the summary file from the previous step
+          summary_file="${{ steps.summarize_test_results.outputs.summary_file }}"
+          
+          # Copy the contents of the summary file to GITHUB_STEP_SUMMARY
+          echo "Contents of summary file:"
+          cat "$summary_file"
+          echo "Copying the contents of the summary file to GITHUB_STEP_SUMMARY."
+          cat "$summary_file" >> $GITHUB_STEP_SUMMARY
+          
+          # Updating the final test report status in check run summary.
+          echo "Final status report is now available."
+          
+          # Update the check run with the summary from the summary file
+          curl -X PATCH \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -d @- \
+            https://api.github.com/repos/${{ github.repository }}/check-runs/${{ github.event.workflow_run.check_run.id }} \
+            <<EOF
+          {
+            "status": "completed",
+            "conclusion": "${{ job.status }}",
+            "output": {
+              "title": "Test Results Summary",
+              "summary": "$(cat "$summary_file" | sed 's/"/\\"/g' | sed 's/\n/\\n/g')"
+            }
+          }
+          EOF
