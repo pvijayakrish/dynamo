@@ -93,6 +93,9 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
+            const fs = require('fs');
+            const path = require('path');
+            const summaryContent = fs.readFileSync(path.join(process.env.GITHUB_WORKSPACE, process.env.GITHUB_STEP_SUMMARY), 'utf-8');
             const check_run = await github.rest.checks.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -102,7 +105,7 @@ jobs:
               conclusion: "${{ job.status }}",
               output: {
                 title: "Test Summary",
-                summary: "$(cat $GITHUB_STEP_SUMMARY)"
+                summary: summaryContent
               }
             });
             return check_run.data.id;
