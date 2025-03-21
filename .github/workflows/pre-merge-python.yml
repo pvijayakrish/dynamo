@@ -16,9 +16,6 @@
 name: NVIDIA Test Github Validation
 
 on:
-  push:
-    branches:
-    - main
   pull_request:
 
 jobs:
@@ -28,20 +25,19 @@ jobs:
       matrix:
         framework:
           - vllm
+          
     name: Build and Test - ${{ matrix.framework }}
     env:
       CONTAINER_ID: test_${{ github.run_id }}_${{ github.run_attempt }}_${{ github.job }}_${{ matrix.framework }}
-      PYTEST_XML_FILE: pytest_test_report.xml
+      PYTEST_MD_FILE: ${{ matrix.framework }}-report.md 
+      PYTEST_XML_FILE: ${{ matrix.framework }}-report.xml
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Run pytest
-        env:
-          PYTEST_MARKS: "pre_merge or mypy"
       - run: |
             pip install -r container/deps/requirements.test.txt
             pytest -v --md-report --md-report-flavor gfm --md-report-exclude-outcomes passed skipped xpassed --md-report-output ${{ env.PYTEST_MD_FILE }} --junitxml=${{ env.PYTEST_XML_FILE }} success_test.py
-      - run: ls -al     
+      - run: ls -al
         if: always()
       - name: Archive test report
         uses: actions/upload-artifact@v4
@@ -51,3 +47,15 @@ jobs:
           if-no-files-found: error
           path: |
             ${{ env.PYTEST_XML_FILE }}
+            ${{ env.PYTEST_MD_FILE }}
+
+#   event_file:
+#     name: "Event File"
+#     runs-on: ubuntu-latest
+#     if: ${{ github.event_name == 'pull_request' }}
+#     steps:
+#       - name: Upload
+#         uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+#         with:
+#           name: Event File
+#           path: ${{ github.event_path }}
