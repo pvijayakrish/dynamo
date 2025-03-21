@@ -8,7 +8,7 @@ ARG RUNTIME_IMAGE="nvcr.io/nvidia/cuda"
 ARG RUNTIME_IMAGE_TAG="12.8.1-runtime-ubuntu24.04"
 
 ARG GENAI_PERF_TAG="25d0188713adc47868d6b3f22426375237a90529"
-
+#REMOVE THIS COMENT
 FROM ${BASE_IMAGE}:${BASE_IMAGE_TAG} AS nixl_base
 WORKDIR /opt/nixl
 # Add a cache hint that only changes when the nixl commit changes
