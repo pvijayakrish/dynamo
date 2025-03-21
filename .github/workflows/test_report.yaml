@@ -44,25 +44,6 @@ jobs:
            run_id: ${{ github.event.workflow_run.id }}
            path: artifacts
 
-      - name: Report test status - In Progress
-        id: report_test_status
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const check_run = await github.rest.checks.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              name: "Summarize test report",
-              head_sha: "${{ github.event.workflow_run.head_commit.id }}",
-              status: "in_progress",
-              conclusion: "neutral",
-              output: {
-                title: "Test Summary",
-                summary: "Test report is currently being processed."
-              }
-            });
-            return check_run.data.id;
-
       - name: Set Test Run URL
         id: set_test_run_url
         run: echo "test_run_url=${{ github.event.workflow_run.html_url }}" >> $GITHUB_OUTPUT
@@ -106,24 +87,22 @@ jobs:
           echo "Total duration: $total_duration"
           echo "|------------|-------|--------|--------|---------|----------|" >> $GITHUB_STEP_SUMMARY
           echo "| **Total** | $total_tests | $total_passed | $total_failed | $total_skipped | ${total_duration}s |" >> $GITHUB_STEP_SUMMARY
-
-      - name: Complete report test status
-        if: always()
-        id: update_check_status
-        run: |
-          echo "Updating the final test report status in check run summary."
-          echo "Final status report is now available."
-          curl -X PATCH \
-            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            -d @- \
-            https://api.github.com/repos/${{ github.repository }}/check-runs/${{ github.event.workflow_run.check_run.id }} \
-            <<EOF
-          {
-            "status": "completed",
-            "conclusion": "${{ job.status }}",
-            "output": {
-              "title": "Test Results Summary",
-              "summary": "$(cat $GITHUB_STEP_SUMMARY)"
-            }
-          }
-          EOF
+      
+      - name: Report test status - In Progress
+        id: report_test_status
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const check_run = await github.rest.checks.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: "Summarize test report",
+              head_sha: "${{ github.event.workflow_run.head_commit.id }}",
+              status: "completed",
+              conclusion: "${{ job.status }}",
+              output: {
+                title: "Test Summary",
+                summary: "$(cat $GITHUB_STEP_SUMMARY)"
+              }
+            });
+            return check_run.data.id;
