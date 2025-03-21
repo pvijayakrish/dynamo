@@ -44,6 +44,25 @@ jobs:
            run_id: ${{ github.event.workflow_run.id }}
            path: artifacts
 
+      - name: Report test status - In Progress
+        id: report_test_status
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const check_run = await github.rest.checks.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: "Summarize test report",
+              head_sha: "${{ github.event.workflow_run.head_commit.id }}",
+              status: "in_progress",
+              conclusion: "neutral",
+              output: {
+                title: "Test Summary",
+                summary: "Test report is currently being processed."
+              }
+            });
+            return check_run.data.id;
+
       - name: Set Test Run URL
         id: set_test_run_url
         run: echo "test_run_url=${{ github.event.workflow_run.html_url }}" >> $GITHUB_OUTPUT
@@ -95,28 +114,29 @@ jobs:
           # Set the path of the summary file as an environment variable
           echo "SUMMARY_FILE_PATH=$SUMMARY_FILE" >> $GITHUB_ENV
           echo "summary_file=$SUMMARY_FILE" >> $GITHUB_OUTPUT
-    
+
       - name: Complete report test status
         if: always()
-        id: update_check_status
+        id: update_parent_workflow_status
         run: |
-          # Use the path to the summary file from the previous step
+          # Path to the summary file (from the previous step output)
           summary_file="${{ steps.summarize_test_results.outputs.summary_file }}"
-          
-          # Copy the contents of the summary file to GITHUB_STEP_SUMMARY
-          echo "Contents of summary file:"
+          echo "Contents of the summary file:"
           cat "$summary_file"
-          echo "Copying the contents of the summary file to GITHUB_STEP_SUMMARY."
-          cat "$summary_file" >> $GITHUB_STEP_SUMMARY
-          
-          # Updating the final test report status in check run summary.
-          echo "Final status report is now available."
-          
-          # Update the check run with the summary from the summary file
+
+          # Get the parent workflow ID from the current workflow_run context
+          parent_workflow_run_id="${{ github.event.workflow_run.id }}"
+
+          # Log the parent workflow run ID for debugging
+          echo "Updating parent workflow run ID: $parent_workflow_run_id"
+
+          # Update the parent workflow run with the summary content
+          echo "Updating the parent workflow run with the test report summary."
+
           curl -X PATCH \
             -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             -d @- \
-            https://api.github.com/repos/${{ github.repository }}/check-runs/${{ github.event.workflow_run.check_run.id }} \
+            https://api.github.com/repos/${{ github.repository }}/actions/runs/$parent_workflow_run_id \
             <<EOF
           {
             "status": "completed",
