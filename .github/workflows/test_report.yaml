@@ -92,6 +92,8 @@ jobs:
         if: always()
         id: update_check_status
         run: |
+           echo "Contents of GITHUB_STEP_SUMMARY:"
+           cat "$GITHUB_STEP_SUMMARY"
            echo "Updating the final test report status in check run summary."
            echo "Final status report is now available."
            curl -X PATCH \
@@ -104,7 +106,7 @@ jobs:
              "conclusion": "${{ job.status }}",
              "output": {
                "title": "Test Results Summary",
-               "summary": "$(cat $GITHUB_STEP_SUMMARY)"
+               "summary": "$(cat "$GITHUB_STEP_SUMMARY" | sed 's/"/\\"/g' | sed 's/\n/\\n/g')"
              }
            }
            EOF
