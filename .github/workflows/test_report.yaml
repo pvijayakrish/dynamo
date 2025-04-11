@@ -112,7 +112,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               name: "Summarize test report",
-              head_sha: "${{ github.event.workflow_run.head_commit.id }}",
+              head_sha: "${{ github.event.workflow_run.head_sha }}",
               status: "completed",
               conclusion: "${{ job.status }}",
               output: {
